@@ -11,3 +11,9 @@
 # produced vignettes
 vignettes/*.html
 vignettes/*.pdf
+
+# Answers
+prediction_answers/
+
+# Cached chunks
+*_cache/

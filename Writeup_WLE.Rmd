@@ -1,0 +1,171 @@
+---
+title: "Qualitative prediction of weight lifting exercises"
+author: "Armando Guereca"
+date: "November 20, 2015"
+output: html_document
+---
+
+# Overview
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+The weight lifting exercises data-set contains data from accelerators on the belt, forearm, arm, and dumbbell from by six young health participants that were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. 
+
+In this project, the goal is to use the sensors data to predict the class of activity performed by the wearer.
+
+##Getting and cleaning data
+
+[**Appendix H**](#appendinx-h) contains references to the original data-sets used, also this report has intentionally omitted some code chunks that could otherwise reduce the terseness of our essay, if you wish to recreate this report [*Appendix H*](#appendinx-h) also includes a link to the source code repository of it.
+
+```{r echo=FALSE, results='hide', message=FALSE}
+# Environment initialization
+setwd("~/coursera/PredMachLearn")
+library(caret)
+library(randomForest)  # Used by caret
+library(doParallel)    # To speedup training
+library(ggplot2)
+library(lattice)
+
+# For reproducibility
+set.seed(244224)
+```
+```{r echo=FALSE, cache=TRUE, results='hide'}
+# Downloading datasets
+train_url <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+trainData <- read.csv(url(train_url), header=TRUE, sep=",", na.strings=c("NA","#DIV/0!",""))
+validationData <- read.csv(url(test_url), header=TRUE, sep=",", na.strings=c("NA","#DIV/0!",""))
+```
+
+We are going to start with the assumption that variables `trainData` (training.csv) and `validationData` (testing.csv) hold their respective source data-sets, both share the same structure, so all data cleaning operation will be preformed on both. 
+
+Our data-sources contains 160 columns (`names(trainData)`), after reading their description is easy to notice that first 7 columns correspond to variables used during data collection and don't add quantitative value for our purpose, we then proceed to drop them:
+```{r}
+trainData <- trainData[,-(1:7)]
+validationData <- validationData[,-(1:7)]
+```
+Also most of the columns seems to be predominantly empty (`summary(trainData)`), so we are going to drop all the columns where the radio of `NA` values is more than 90%, meaning they are empty.
+```{r}
+not_empty <- as.vector(apply(trainData, 2, function(x) {(sum(is.na(x))/length(x)) < 0.9}))
+trainData <- trainData[, not_empty]
+validationData <- validationData[, not_empty]
+dim(trainData)
+```
+We halved the number of columns from the ones in the original data-set, our next dimensionality reduction strategy will be to remove highly correlated covariants (>90%) to reduce the total variability of our predictors.
+```{r}
+correlated <- findCorrelation(cor(subset(trainData, select=-classe)), cutoff=0.9)
+trainData <- trainData[, -correlated]
+validationData <- validationData[, -correlated]
+```
+Next step would be to remove covariates with near-zero-variance, but in this case there is no columns fitting that condition:
+```{r results='hide'}
+sum(nearZeroVar(trainData, saveMetrics=TRUE)$nzv)   # This returns 0
+col_count <- dim(trainData)[2]
+```
+```{r echo=FALSE}
+paste("Final count of columns:", col_count)
+```
+
+
+In order to apply cross validation we need to partition our `trainData` to extract `training` and `testing` set (70% - 30% respectively), also in order to reduce variance on our predictors we are going to preprocess them, but this will be done while training our models with the `caret` package. 
+
+```{r}
+is_train <- createDataPartition(y=trainData$classe, p=0.7, list=FALSE)
+training <- trainData[is_train,]
+testing <- trainData[-is_train,]
+pre_process <- c("center", "scale", "BoxCox")
+```
+
+A reference about our preprocessing strategy and some of the dimensionality reduction strategies applied on this report can be found in [*Appendix A*](#appendinx-a)
+
+
+## Model fitting
+
+Some of the best prediction algorithms are *Random Forests*, *Decision Trees*, and *Boosting*, in this report we are going to use Random Forests with the `caret` package, also in order to optimize the training time we are going to use the `doParallel` package, view [*Appendix B*](#appendinx-b) for references about parallel processing with caret.
+
+```{r cache=TRUE}
+my_cluster <- makeCluster(detectCores() - 1)   # Leave at least one core to OS
+doParallel::registerDoParallel(my_cluster)
+rf_fit <- train(classe~., data=training, method="rf", preProcess=pre_process, prox=TRUE,
+                trControl=trainControl(method = "cv", number = 5, allowParallel = TRUE))
+stopCluster(my_cluster)
+```
+Our resulting optimal model:
+```{r echo=FALSE}
+rf_fit
+rf_fit$finalModel
+```
+
+**In sample accuracy**, measured by predicting over *training* set:
+```{r}
+confusionMatrix(predict(rf_fit, training), training$classe)
+```
+
+**Out of sample accuracy**, measured by predicting over *testing* set:
+```{r}
+confusionMatrix(predict(rf_fit, testing), testing$classe)
+```
+
+
+Since the out-of-sample accuracy is **99.4%**, we validate that our Random Forests model meets our prediction objectives.
+
+We will persist our trained model info a file, to have it readely available for further use.
+```{r}
+save(rf_fit, file="WLE-rf_fit.RData")
+```
+
+
+##Validation
+
+Once we have found and trained a good model, we are going to use it to predict the Class of excercise for each of our 20 validation samples:
+```{r}
+predicted_classes <- predict(rf_fit, validationData)
+```
+
+[*Appendix C*](#appendinx-c) has the code used to submit the prediction assignment to Coursera.
+
+
+
+
+##Appendix
+
+####A) Data Pre-Processing: <a name="appendinx-a"></a>
+Pre-Processing: <http://topepo.github.io/caret/preprocess.html>
+
+Caret tutorial: <http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf>
+
+####B) Parallel processing: <a name="appendinx-b"></a>
+Random Forests model in this report required *~17* minutes of processing time to train, using 7 cores of MacBookPro 2013.
+
+doParallel package: <https://cran.r-project.org/web/packages/doParallel/vignettes/gettingstartedParallel.pdf>
+
+Michael Hahsler tutorial: <http://michael.hahsler.net/SMU/LearnROnYourOwn/code/doMC.html>
+
+Caret with doMC package: <http://topepo.github.io/caret/parallel.html>
+
+####C) Prediction Assignment Submission: <a name="appendinx-a"></a>
+Following are the steps to generate the files required to submit the prediction assignment to Coursera, this where taken from the instructions given in the Course Project.
+
+```{r}
+answers = as.character(predicted_classes)
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("prediction_answers/problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
+```
+
+####H) Data Sources & References: <a name="appendinx-h"></a>
+Full source code to generate this report can be found here: <https://github.com/aguereca/PredMachLearn>
+
+The training data for this project are available here: <`r train_url`>
+
+The test data are available here: <`r test_url`> 
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. [Qualitative Activity Recognition of Weight Lifting Exercises](http://groupware.les.inf.puc-rio.br/work.jsf?p1=11201). Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013
+
+Read more: <http://groupware.les.inf.puc-rio.br/har#ixzz3s6H1qCeU>
