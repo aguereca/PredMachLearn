@@ -102,15 +102,15 @@ rf_fit$finalModel
 confusionMatrix(predict(rf_fit, training), training$classe)
 ```
 
-**Out of sample accuracy**, measured by predicting over *testing* set:
+**Out of sample accuracy**, measured by predicting over *testing* set, this is expected to be less than our *in-sample* accuracy (100%) since now we are predicting on a different set of data:
 ```{r}
 confusionMatrix(predict(rf_fit, testing), testing$classe)
 ```
 
 
-Since the out-of-sample accuracy is **99.4%**, we validate that our Random Forests model meets our prediction objectives.
+Out-of-sample accuracy is **99.4%**, with this value we conclude that our Random Forests model satisfactorily meets our prediction objectives.
 
-We will persist our trained model info a file, to have it readely available for further use.
+We will persist our trained model info a file, to have it readily available for further use.
 ```{r}
 save(rf_fit, file="WLE-rf_fit.RData")
 ```
@@ -118,7 +118,7 @@ save(rf_fit, file="WLE-rf_fit.RData")
 
 ##Validation
 
-Once we have found and trained a good model, we are going to use it to predict the Class of excercise for each of our 20 validation samples:
+Once we have found and trained a good model, we are going to use it to predict the Class of exercise for each of our 20 validation samples:
 ```{r}
 predicted_classes <- predict(rf_fit, validationData)
 ```
