@@ -176,7 +176,7 @@ stopCluster(my_cluster)</code></pre>
 ## Detection Rate         0.2843   0.1935   0.1744   0.1639   0.1838
 ## Detection Prevalence   0.2843   0.1935   0.1744   0.1639   0.1838
 ## Balanced Accuracy      1.0000   1.0000   1.0000   1.0000   1.0000</code></pre>
-<p><strong>Out of sample accuracy</strong>, measured by predicting over <em>testing</em> set:</p>
+<p><strong>Out of sample accuracy</strong>, measured by predicting over <em>testing</em> set, this is expected to be less than our <em>in-sample</em> accuracy (100%) since now we are predicting on a different set of data:</p>
 <pre class="r"><code>confusionMatrix(predict(rf_fit, testing), testing$classe)</code></pre>
 <pre><code>## Confusion Matrix and Statistics
 ## 
@@ -209,13 +209,13 @@ stopCluster(my_cluster)</code></pre>
 ## Detection Rate         0.2843   0.1913   0.1733   0.1621   0.1830
 ## Detection Prevalence   0.2863   0.1918   0.1752   0.1630   0.1837
 ## Balanced Accuracy      0.9983   0.9940   0.9959   0.9943   0.9973</code></pre>
-<p>Since the out-of-sample accuracy is <strong>99.4%</strong>, we validate that our Random Forests model meets our prediction objectives.</p>
-<p>We will persist our trained model info a file, to have it readely available for further use.</p>
+<p>Out-of-sample accuracy is <strong>99.4%</strong>, with this value we conclude that our Random Forests model satisfactorily meets our prediction objectives.</p>
+<p>We will persist our trained model info a file, to have it readily available for further use.</p>
 <pre class="r"><code>save(rf_fit, file=&quot;WLE-rf_fit.RData&quot;)</code></pre>
 </div>
 <div id="validation" class="section level2">
 <h2>Validation</h2>
-<p>Once we have found and trained a good model, we are going to use it to predict the Class of excercise for each of our 20 validation samples:</p>
+<p>Once we have found and trained a good model, we are going to use it to predict the Class of exercise for each of our 20 validation samples:</p>
 <pre class="r"><code>predicted_classes &lt;- predict(rf_fit, validationData)</code></pre>
 <p><a href="#appendinx-c"><em>Appendix C</em></a> has the code used to submit the prediction assignment to Coursera.</p>
 </div>
